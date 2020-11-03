@@ -4,8 +4,10 @@ import { Select, Button } from 'antd';
 import { useDispatch } from 'react-redux';
 import ReactHtmlParser from 'react-html-parser';
 import { getAddonFiles, getAddonFileChangelog } from '../../api';
-import { changeModpackVersion } from '../../reducers/actions';
 import { closeModal } from '../../reducers/modals/actions';
+import { sortByDate } from '../../utils';
+import sendMessage from '../../utils/sendMessage';
+import EV from '../../messageEvents';
 
 const Modpack = ({ modpackId, instanceName, manifest }) => {
   const [files, setFiles] = useState([]);
@@ -16,9 +18,10 @@ const Modpack = ({ modpackId, instanceName, manifest }) => {
 
   const initData = async () => {
     setLoading(true);
-    const { data } = await getAddonFiles(modpackId);
+    const data = await getAddonFiles(modpackId);
+    const sortedFiles = data.data.sort(sortByDate);
     const mappedFiles = await Promise.all(
-      data.map(async v => {
+      sortedFiles.map(async v => {
         const { data: changelog } = await getAddonFileChangelog(
           modpackId,
           v.id
@@ -151,9 +154,10 @@ const Modpack = ({ modpackId, instanceName, manifest }) => {
         disabled={selectedIndex === null}
         onClick={async () => {
           setInstalling(true);
-          await dispatch(
-            changeModpackVersion(instanceName, files[selectedIndex])
-          );
+          await sendMessage(EV.UPDATE_MODPACK_VERSION, [
+            instanceName,
+            files[selectedIndex]
+          ]);
           setInstalling(false);
           dispatch(closeModal());
         }}

@@ -1,5 +1,4 @@
 import React, { memo, useState, useEffect, useMemo } from 'react';
-import { clipboard, ipcRenderer } from 'electron';
 import styled, { keyframes } from 'styled-components';
 import memoize from 'memoize-one';
 import { ContextMenuTrigger, ContextMenu, MenuItem } from 'react-contextmenu';
@@ -25,12 +24,9 @@ import { faTwitch } from '@fortawesome/free-brands-svg-icons';
 import fse from 'fs-extra';
 import makeDir from 'make-dir';
 import { _getInstance, _getInstancesPath } from '../../utils/selectors';
-import {
-  updateInstanceConfig,
-  deleteMod,
-  updateMod
-} from '../../reducers/actions';
 import { openModal } from '../../reducers/modals/actions';
+import sendMessage from '../../utils/sendMessage';
+import EV from '../../messageEvents';
 
 const Header = styled.div`
   height: 40px;
@@ -235,53 +231,20 @@ const DeleteSelectedMods = styled(({ selectedMods, ...props }) => (
 }`}
 `;
 
-const deleteMods = async (
-  instanceName,
-  instancePath,
-  selectedMods,
-  dispatch
-) => {
-  await dispatch(
-    updateInstanceConfig(instanceName, prev => ({
-      ...prev,
-      mods: prev.mods.filter(m => !selectedMods.includes(m.fileName))
-    }))
-  );
-  await Promise.all(
-    selectedMods.map(fileName =>
-      fse.remove(path.join(instancePath, 'mods', fileName))
-    )
-  );
+const deleteMods = async (instanceName, selectedMods) => {
+  return sendMessage(EV.DELETE_MODS, [instanceName, selectedMods]);
 };
 
-const toggleModDisabled = async (
-  c,
-  instanceName,
-  instancePath,
-  mod,
-  dispatch
-) => {
+const toggleModDisabled = async (c, instanceName, instancePath, mod) => {
   const destFileName = c
     ? mod.fileName.replace('.disabled', '')
     : `${mod.fileName}.disabled`;
-  await dispatch(
-    updateInstanceConfig(instanceName, prev => ({
-      ...prev,
-      mods: prev.mods.map(m => {
-        if (m.fileName === mod.fileName) {
-          return {
-            ...m,
-            fileName: destFileName
-          };
-        }
-        return m;
-      })
-    }))
-  );
-  await fse.move(
-    path.join(instancePath, 'mods', mod.fileName),
-    path.join(instancePath, 'mods', destFileName)
-  );
+
+  return sendMessage(EV.TOGGLE_MOD_DISABLED, [
+    mod.fileName,
+    destFileName,
+    instanceName
+  ]);
 };
 
 const Row = memo(({ index, style, data }) => {
@@ -382,14 +345,12 @@ const Row = memo(({ index, style, data }) => {
                   icon={faDownload}
                   onClick={async () => {
                     setUpdateLoading(true);
-                    await dispatch(
-                      updateMod(
-                        instanceName,
-                        item,
-                        latestMods[item.projectID].id,
-                        gameVersion
-                      )
-                    );
+                    await sendMessage(EV.UPDATE_MOD, [
+                      instanceName,
+                      item,
+                      latestMods[item.projectID].id,
+                      gameVersion
+                    ]);
                     setUpdateLoading(false);
                   }}
                 />
@@ -411,13 +372,7 @@ const Row = memo(({ index, style, data }) => {
                   setSelectedMods(prev => [...prev, destFileName]);
                 }
 
-                await toggleModDisabled(
-                  c,
-                  instanceName,
-                  instancePath,
-                  item,
-                  dispatch
-                );
+                await toggleModDisabled(c, instanceName, instancePath, item);
                 if (isCurrentlySelected) {
                   setSelectedMods(prev =>
                     prev.filter(v => v !== item.fileName)
@@ -442,7 +397,7 @@ const Row = memo(({ index, style, data }) => {
               `}
               onClick={() => {
                 if (!loading && !updateLoading) {
-                  dispatch(deleteMod(instanceName, item));
+                  deleteMods(instanceName, [item.fileName]);
                 }
               }}
               icon={faTrash}
@@ -465,7 +420,7 @@ const Row = memo(({ index, style, data }) => {
         >
           <MenuItem
             onClick={() => {
-              clipboard.writeText(item.displayName);
+              sendMessage(EV.COPY_TO_CLIPBOARD, item.displayName);
             }}
           >
             <FontAwesomeIcon
@@ -545,7 +500,7 @@ const Mods = ({ instanceName }) => {
 
   const openFolder = async p => {
     await makeDir(p);
-    ipcRenderer.invoke('openFolder', p);
+    sendMessage(EV.OPEN_FOLDER, p);
   };
 
   const antIcon = (
@@ -705,12 +660,7 @@ const Mods = ({ instanceName }) => {
           <DeleteSelectedMods
             onClick={async () => {
               if (selectedMods.length === 0) return;
-              await deleteMods(
-                instanceName,
-                path.join(instancesPath, instanceName),
-                selectedMods,
-                dispatch
-              );
+              await deleteMods(instanceName, selectedMods);
               setSelectedMods([]);
             }}
             selectedMods={selectedMods.length}

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, memo } from 'react';
 import styled from 'styled-components';
-import { ipcRenderer, clipboard } from 'electron';
 import { useSelector, useDispatch } from 'react-redux';
 import path from 'path';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -36,6 +35,8 @@ import HorizontalLogo from '../../../../ui/HorizontalLogo';
 import { updateConcurrentDownloads } from '../../../reducers/actions';
 import { openModal } from '../../../reducers/modals/actions';
 import { extractFace } from '../../../../app/desktop/utils';
+import sendMessage from '../../../utils/sendMessage';
+import EV from '../../../messageEvents';
 
 const MyAccountPrf = styled.div`
   width: 100%;
@@ -192,7 +193,7 @@ const CustomDataPathContainer = styled.div`
 
 function copy(setCopied, copyText) {
   setCopied(true);
-  clipboard.writeText(copyText);
+  sendMessage(EV.COPY_TEXT_TO_CLIPBOARD, copyText);
   setTimeout(() => {
     setCopied(false);
   }, 500);
@@ -246,10 +247,9 @@ const General = () => {
     Object.keys(isPlaying).length > 0;
 
   useEffect(() => {
-    ipcRenderer.invoke('getAppVersion').then(setVersion).catch(console.error);
+    sendMessage(EV.GET_APP_VERSION).then(setVersion).catch(console.error);
     extractFace(currentAccount.skin).then(setProfileImage).catch(console.error);
-    ipcRenderer
-      .invoke('getAppdataPath')
+    sendMessage(EV.GET_APP_DATA_PATH)
       .then(appData =>
         fsa
           .readFile(path.join(appData, 'gdlauncher_next', 'rChannel'))
@@ -273,7 +273,7 @@ const General = () => {
 
   const changeDataPath = async () => {
     setLoadingMoveUserData(true);
-    const appData = await ipcRenderer.invoke('getAppdataPath');
+    const appData = await sendMessage(EV.GET_APP_DATA_PATH);
     const appDataPath = path.join(appData, 'gdlauncher_next');
 
     const notCopiedFiles = [
@@ -307,12 +307,12 @@ const General = () => {
       }
     }
     setLoadingMoveUserData(false);
-    ipcRenderer.invoke('appRestart');
+    sendMessage(EV.RESTART_APP);
   };
 
   const openFolder = async () => {
-    const { filePaths, canceled } = await ipcRenderer.invoke(
-      'openFolderDialog',
+    const { filePaths, canceled } = await sendMessage(
+      EV.OPEN_FOLDER_DIALOG,
       userData
     );
     if (!filePaths[0] || canceled) return;
@@ -386,7 +386,7 @@ const General = () => {
               width: 100px;
             `}
             onChange={async e => {
-              const appData = await ipcRenderer.invoke('getAppdataPath');
+              const appData = await sendMessage(EV.GET_APP_DATA_PATH);
               setReleaseChannel(e);
               await fsa.writeFile(
                 path.join(appData, 'gdlauncher_next', 'rChannel'),
@@ -480,9 +480,9 @@ const General = () => {
           onChange={e => {
             dispatch(updateDiscordRPC(e));
             if (e) {
-              ipcRenderer.invoke('init-discord-rpc');
+              sendMessage(EV.INIT_DISCORD_RPC);
             } else {
-              ipcRenderer.invoke('shutdown-discord-rpc');
+              sendMessage(EV.SHUTDOWN_DISCORD_RPC);
             }
           }}
           checked={DiscordRPC}
@@ -629,7 +629,7 @@ const General = () => {
               margin-left: 30px;
             `}
             onClick={async () => {
-              const appData = await ipcRenderer.invoke('getAppdataPath');
+              const appData = await sendMessage(EV.GET_APP_DATA_PATH);
               const appDataPath = path.join(appData, 'gdlauncher_next');
               setDataPath(appDataPath);
             }}
@@ -740,9 +740,7 @@ const General = () => {
         >
           {updateAvailable ? (
             <Button
-              onClick={() =>
-                ipcRenderer.invoke('installUpdateAndQuitOrRestart')
-              }
+              onClick={() => sendMessage(EV.APPLY_UPDATE)}
               css={`
                 margin-right: 10px;
               `}

@@ -16,10 +16,7 @@ const baseConfig = {
     rules: [
       {
         test: /\.node$/,
-        loader: 'native-ext-loader',
-        options: {
-          basePath: []
-        }
+        loader: 'native-ext-loader'
       },
       {
         test: /\.jsx?$/,
@@ -27,7 +24,12 @@ const baseConfig = {
         use: {
           loader: 'babel-loader',
           options: {
-            cacheDirectory: true
+            cacheDirectory: true,
+            presets: [['@babel/preset-env', { targets: { node: '14' } }]],
+            plugins: [
+              '@babel/plugin-proposal-nullish-coalescing-operator',
+              '@babel/plugin-proposal-optional-chaining'
+            ]
           }
         }
       }
@@ -50,22 +52,20 @@ const baseConfig = {
 
   plugins: [
     new webpack.EnvironmentPlugin({
-      NODE_ENV: 'production',
+      NODE_ENV: process.env.NODE_ENV,
       REACT_APP_RELEASE_TYPE: process.env.REACT_APP_RELEASE_TYPE
-    }),
-
-    new webpack.NamedModulesPlugin()
+    })
   ]
 };
 
 module.exports = merge(baseConfig, {
   devtool: 'eval-cheap-module-source-map',
 
-  mode: 'production',
+  mode: process.env.NODE_ENV,
 
   target: 'electron-main',
 
-  entry: './public/electron.js',
+  entry: './src/main/electron.js',
 
   output: {
     path: path.join(__dirname, '..'),
@@ -73,16 +73,16 @@ module.exports = merge(baseConfig, {
   },
 
   optimization: {
-    minimizer: [
-      new TerserPlugin({
-        parallel: true,
-        sourceMap: true,
-        cache: true
-      })
-    ]
+    minimize: true,
+    minimizer: [new TerserPlugin()]
   },
 
   plugins: [
+    new webpack.ExternalsPlugin('commonjs', [
+      'leveldown',
+      'murmur2-calculator',
+      'nsfw'
+    ]),
     new BundleAnalyzerPlugin({
       analyzerMode:
         process.env.OPEN_ANALYZER === 'true' ? 'server' : 'disabled',
@@ -99,7 +99,7 @@ module.exports = merge(baseConfig, {
      * development checks
      */
     new webpack.EnvironmentPlugin({
-      NODE_ENV: 'production',
+      NODE_ENV: process.env.NODE_ENV,
       DEBUG_PROD: false,
       START_MINIMIZED: false
     })

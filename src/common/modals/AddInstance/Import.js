@@ -5,15 +5,15 @@ import path from 'path';
 import fse from 'fs-extra';
 import { promises as fs } from 'fs';
 import { extractFull } from 'node-7z';
-import { get7zPath, isMod } from '../../../app/desktop/utils';
-import { ipcRenderer } from 'electron';
 import { Button, Input } from 'antd';
 import { _getTempPath } from '../../utils/selectors';
 import { useSelector } from 'react-redux';
-import { getAddon, getAddonFiles } from '../../api';
-import { downloadFile } from '../../../app/desktop/utils/downloader';
+import { getAddon } from '../../api';
+import { downloadFile } from '../../utils/downloader';
 import { FABRIC, FORGE, VANILLA } from '../../utils/constants';
 import { transparentize } from 'polished';
+import sendMessage from '../../utils/sendMessage';
+import EV from '../../messageEvents';
 
 const Import = ({
   setModpack,
@@ -37,7 +37,7 @@ const Import = ({
   }, [localValue]);
 
   const openFileDialog = async () => {
-    const dialog = await ipcRenderer.invoke('openFileDialog');
+    const dialog = await sendMessage(EV.OPEN_FILE_DIALOG);
     if (dialog.canceled) return;
     setLocalValue(dialog.filePaths[0]);
   };
@@ -49,7 +49,6 @@ const Import = ({
     const isUrlRegex = urlRegex.test(localValue);
 
     const tempFilePath = path.join(tempPath, path.basename(localValue));
-
 
     if (isUrlRegex) {
       try {
@@ -67,7 +66,8 @@ const Import = ({
       }
     }
 
-    const sevenZipPath = await get7zPath();
+    const sevenZipPath = await sendMessage(EV.GET_7Z_PATH);
+
     try {
       await fs.access(path.join(tempPath, 'manifest.json'));
     } catch {

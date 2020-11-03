@@ -4,7 +4,6 @@ import styled, { keyframes } from 'styled-components';
 import { promises as fs } from 'fs';
 import { LoadingOutlined } from '@ant-design/icons';
 import path from 'path';
-import { ipcRenderer } from 'electron';
 import { Portal } from 'react-portal';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
@@ -19,16 +18,14 @@ import {
 import psTree from 'ps-tree';
 import { ContextMenuTrigger, ContextMenu, MenuItem } from 'react-contextmenu';
 import { useSelector, useDispatch } from 'react-redux';
-import {
-  _getInstance,
-  _getInstancesPath,
-  _getDownloadQueue
-} from '../../../../common/utils/selectors';
+import { _getInstancesPath } from '../../../../common/utils/selectors';
 import { launchInstance } from '../../../../common/reducers/actions';
 import { openModal } from '../../../../common/reducers/modals/actions';
 import instanceDefaultBackground from '../../../../common/assets/instance_default.png';
 import { convertMinutesToHumanTime } from '../../../../common/utils';
 import { FABRIC, FORGE, VANILLA } from '../../../../common/utils/constants';
+import sendMessage from '../../../../common/utils/sendMessage';
+import EV from '../../../../common/messageEvents';
 
 const Container = styled.div`
   position: relative;
@@ -76,8 +73,8 @@ const InstanceContainer = styled.div`
   font-size: 20px;
   overflow: hidden;
   height: 100%;
-  background: linear-gradient(0deg,rgba(0,0,0,0.8),rgba(0,0,0,0.8)),url("${props =>
-    props.background}") center no-repeat;
+  background: linear-gradient(0deg, rgba(0, 0, 0, 0.8), rgba(0, 0, 0, 0.8)),
+    url('${props => props.background}') center no-repeat;
   background-position: center;
   color: ${props => props.theme.palette.text.secondary};
   font-weight: 600;
@@ -154,22 +151,24 @@ const MenuInstanceName = styled.div`
   font-weight: 700;
 `;
 
-const Instance = ({ instanceName }) => {
+const Instance = ({
+  isInstalling,
+  installationProgress,
+  installationStatus,
+  isInQueue,
+  instance
+}) => {
   const dispatch = useDispatch();
   const [isHovered, setIsHovered] = useState(false);
   const [background, setBackground] = useState(`${instanceDefaultBackground}`);
-  const instance = useSelector(state => _getInstance(state)(instanceName));
-  const downloadQueue = useSelector(_getDownloadQueue);
-  const currentDownload = useSelector(state => state.currentDownload);
   const startedInstances = useSelector(state => state.startedInstances);
   const instancesPath = useSelector(_getInstancesPath);
-  const isInQueue = downloadQueue[instanceName];
 
-  const isPlaying = startedInstances[instanceName];
+  const isPlaying = startedInstances[instance.name];
 
   useEffect(() => {
     if (instance.background) {
-      fs.readFile(path.join(instancesPath, instanceName, instance.background))
+      fs.readFile(path.join(instancesPath, instance.name, instance.background))
         .then(res =>
           setBackground(`data:image/png;base64,${res.toString('base64')}`)
         )
@@ -177,23 +176,27 @@ const Instance = ({ instanceName }) => {
     } else {
       setBackground(`${instanceDefaultBackground}`);
     }
-  }, [instance.background, instancesPath, instanceName]);
+  }, [instance.background, instancesPath, instance.name]);
 
   const startInstance = () => {
     if (isInQueue || isPlaying) return;
-    dispatch(launchInstance(instanceName));
+    dispatch(launchInstance(instance.name));
   };
   const openFolder = () => {
-    ipcRenderer.invoke('openFolder', path.join(instancesPath, instance.name));
+    sendMessage(EV.OPEN_FOLDER, path.join(instancesPath, instance.name));
   };
   const openConfirmationDeleteModal = () => {
-    dispatch(openModal('InstanceDeleteConfirmation', { instanceName }));
+    dispatch(
+      openModal('InstanceDeleteConfirmation', { instanceName: instance.name })
+    );
   };
   const manageInstance = () => {
-    dispatch(openModal('InstanceManager', { instanceName }));
+    dispatch(openModal('InstanceManager', { instanceName: instance.name }));
   };
   const instanceExportCurseForge = () => {
-    dispatch(openModal('InstanceExportCurseForge', { instanceName }));
+    dispatch(
+      openModal('InstanceExportCurseForge', { instanceName: instance.name })
+    );
   };
   const killProcess = () => {
     console.log(isPlaying.pid);
@@ -210,7 +213,7 @@ const Instance = ({ instanceName }) => {
 
   return (
     <>
-      <ContextMenuTrigger id={instanceName}>
+      <ContextMenuTrigger id={instance.name}>
         <Container
           installing={isInQueue}
           onClick={startInstance}
@@ -228,22 +231,22 @@ const Instance = ({ instanceName }) => {
               {convertMinutesToHumanTime(instance.timePlayed)}
             </TimePlayed>
             <MCVersion>{(instance.modloader || [])[1]}</MCVersion>
-            {instanceName}
+            {instance.name}
           </InstanceContainer>
           <HoverContainer
             installing={isInQueue}
             isHovered={isHovered || isPlaying}
           >
-            {currentDownload === instanceName ? (
+            {isInstalling ? (
               <>
                 <div
                   css={`
                     font-size: 14px;
                   `}
                 >
-                  {isInQueue ? isInQueue.status : null}
+                  {installationStatus}
                 </div>
-                {`${isInQueue.percentage}%`}
+                {`${installationProgress}%`}
                 <LoadingOutlined
                   css={`
                     position: absolute;
@@ -292,7 +295,7 @@ const Instance = ({ instanceName }) => {
           onShow={() => setIsHovered(true)}
           onHide={() => setIsHovered(false)}
         >
-          <MenuInstanceName>{instanceName}</MenuInstanceName>
+          <MenuInstanceName>{instance.name}</MenuInstanceName>
           {isPlaying && (
             <MenuItem onClick={killProcess}>
               <FontAwesomeIcon

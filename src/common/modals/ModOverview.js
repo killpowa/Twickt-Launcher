@@ -9,24 +9,21 @@ import { faExternalLinkAlt, faInfo } from '@fortawesome/free-solid-svg-icons';
 import { Button, Select } from 'antd';
 import Modal from '../components/Modal';
 import { transparentize } from 'polished';
-import {
-  getAddonDescription,
-  getAddonFiles,
-  getAddon,
-  getAddonFileChangelog
-} from '../api';
+import { getAddonDescription, getAddonFiles, getAddon } from '../api';
 import CloseButton from '../components/CloseButton';
 import { closeModal, openModal } from '../reducers/modals/actions';
-import { installMod, updateInstanceConfig } from '../reducers/actions';
+import { updateInstanceConfig } from '../reducers/actions';
 import { remove } from 'fs-extra';
 import { _getInstancesPath, _getInstance } from '../utils/selectors';
 import { FABRIC, FORGE, CURSEFORGE_URL } from '../utils/constants';
-import { formatNumber, formatDate } from '../utils';
+import { formatNumber, formatDate, sortByDate } from '../utils';
 import {
   filterFabricFilesByVersion,
   filterForgeFilesByVersion,
   getPatchedInstanceType
 } from '../../app/desktop/utils';
+import sendMessage from '../utils/sendMessage';
+import EV from '../messageEvents';
 
 const ModOverview = ({
   projectID,
@@ -60,15 +57,19 @@ const ModOverview = ({
           setDescription(modifiedData);
         }),
         getAddonFiles(projectID).then(async data => {
+          const sortedFiles = data.data.sort(sortByDate);
           const isFabric =
             getPatchedInstanceType(instance) === FABRIC && projectID !== 361988;
           const isForge =
             getPatchedInstanceType(instance) === FORGE || projectID === 361988;
           let filteredFiles = [];
           if (isFabric) {
-            filteredFiles = filterFabricFilesByVersion(data.data, gameVersion);
+            filteredFiles = filterFabricFilesByVersion(
+              sortedFiles,
+              gameVersion
+            );
           } else if (isForge) {
-            filteredFiles = filterForgeFilesByVersion(data.data, gameVersion);
+            filteredFiles = filterForgeFilesByVersion(sortedFiles, gameVersion);
           }
 
           setFiles(filteredFiles);
@@ -295,32 +296,19 @@ const ModOverview = ({
             onClick={async () => {
               setLoading(true);
               if (installedData.fileID) {
-                await dispatch(
-                  updateInstanceConfig(instanceName, prev => ({
-                    ...prev,
-                    mods: prev.mods.filter(
-                      v => v.fileName !== installedData.fileName
-                    )
-                  }))
-                );
-                await remove(
-                  path.join(
-                    instancesPath,
-                    instanceName,
-                    'mods',
-                    installedData.fileName
-                  )
-                );
-              }
-              const newFile = await dispatch(
-                installMod(
-                  projectID,
-                  selectedItem,
+                await sendMessage(EV.DELETE_MODS, [
                   instanceName,
-                  gameVersion,
-                  !installedData.fileID
-                )
-              );
+                  [installedData.fileName]
+                ]);
+              }
+              const newFile = await sendMessage(EV.INSTALL_MOD, [
+                projectID,
+                selectedItem,
+                instanceName,
+                gameVersion,
+                !installedData.fileID
+              ]);
+              console.log(newFile);
               setInstalledData({ fileID: selectedItem, fileName: newFile });
               setLoading(false);
             }}

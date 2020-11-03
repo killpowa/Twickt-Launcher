@@ -7,7 +7,28 @@
 // };
 
 const CracoAntDesignPlugin = require('craco-antd');
+// eslint-disable-next-line
+const webpack = require('webpack');
+const path = require('path');
 const TerserPlugin = require('terser-webpack-plugin');
+const alias = require('./aliases');
+
+const aliases = alias();
+const resolvedAliases = Object.fromEntries(
+  Object.entries(aliases).map(([key, value]) => [
+    key,
+    path.resolve(__dirname, value)
+  ])
+);
+
+/* eslint-disable */
+const appTarget =
+  process.env.NODE_ENV === 'development'
+    ? 'Dev'
+    : process.env.NODE_ENV === 'web'
+    ? 'Web'
+    : 'Electron';
+/* eslint-enable */
 
 module.exports = ({ env }) => {
   const isEnvDevelopment = env === 'development';
@@ -20,7 +41,7 @@ module.exports = ({ env }) => {
           '@babel/preset-env',
           {
             targets: {
-              node: '13'
+              node: '14'
             }
           }
         ],
@@ -46,8 +67,6 @@ module.exports = ({ env }) => {
       devtool: 'eval-cheap-module-source-map',
       configure: {
         devtool: 'eval-cheap-module-source-map',
-        target:
-          process.env.APP_TYPE === 'electron' ? 'electron-renderer' : 'web',
         optimization: {
           splitChunks: {
             name: false,
@@ -82,12 +101,23 @@ module.exports = ({ env }) => {
       optimization: {
         minimizer: [
           new TerserPlugin({
-            parallel: true,
-            sourceMap: true,
-            cache: true
+            parallel: true
           })
         ]
-      }
+      },
+      plugins: [
+        new webpack.NormalModuleReplacementPlugin(
+          /(.*)-APP_TARGET(\.*)/,
+          resource => {
+            // eslint-disable-next-line
+            resource.request = resource.request.replace(
+              /-APP_TARGET/,
+              `-${appTarget}`
+            );
+          }
+        )
+      ],
+      alias: resolvedAliases
     },
     plugins: [
       {
