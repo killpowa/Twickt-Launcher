@@ -333,6 +333,23 @@ export const extractNatives = async (libraries, instancePath) => {
   );
 };
 
+export const instanceNameSuffix = (name, instanceList) => {
+  const match = name.match(/^(.+ - copy )(\((\d+)\))$/);
+  const instancesArrayList = Object.keys(instanceList);
+  if (name && !instancesArrayList.includes(name)) {
+    return name;
+  }
+  const newName =
+    match && match[3] !== '5'
+      ? `${match[1]}(${parseInt(match[3], 10) + 1})`
+      : `${name} - copy (1)`;
+
+  if (newName && !instancesArrayList.includes(newName)) {
+    return newName;
+  }
+  return instanceNameSuffix(newName, instanceList);
+};
+
 export const copyAssetsToResources = async assets => {
   await Promise.all(
     assets.map(async asset => {
@@ -343,6 +360,19 @@ export const copyAssetsToResources = async assets => {
         await fs.copyFile(asset.path, asset.resourcesPath);
       }
     })
+  );
+};
+
+export const duplicateInstance = async (
+  folderPath,
+  instancesPath,
+  newInstanceName
+) => {
+  const name = path.basename(folderPath);
+  const newName = await instanceNameSuffix(name, instancesPath);
+  await fse.copy(
+    folderPath,
+    path.join(folderPath, '..', newInstanceName || newName)
   );
 };
 

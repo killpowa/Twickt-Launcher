@@ -22,6 +22,7 @@ import {
 import { _getInstancesPath, _getTempPath } from '../../utils/selectors';
 import bgImage from '../../assets/mcCube.jpg';
 import { downloadFile } from '../../../app/desktop/utils/downloader';
+import { instanceNameSuffix } from '../../../app/desktop/utils';
 import { FABRIC, VANILLA, FORGE } from '../../utils/constants';
 
 const InstanceName = ({
@@ -44,8 +45,10 @@ const InstanceName = ({
   const dispatch = useDispatch();
   const instancesPath = useSelector(_getInstancesPath);
   const tempPath = useSelector(_getTempPath);
+  const instances = useSelector(state => state.instances.list);
   const forgeManifest = useSelector(state => state.app.forgeManifest);
   const [instanceName, setInstanceName] = useState(mcName);
+  const [instanceNameSufx, setInstanceNameSufx] = useState(null);
   const [alreadyExists, setAlreadyExists] = useState(false);
   const [invalidName, setInvalidName] = useState(true);
   const [clicked, setClicked] = useState(false);
@@ -63,14 +66,20 @@ const InstanceName = ({
         setAlreadyExists(false);
         return;
       }
-      fse
-        .pathExists(path.join(instancesPath, instanceName || mcName))
-        .then(exists => {
-          setAlreadyExists(exists);
-          setInvalidName(false);
-        });
     }
   }, [instanceName, step]);
+
+  useEffect(() => {
+    fse
+      .pathExists(path.join(instancesPath, instanceName || mcName))
+      .then(exists => {
+        const newName = instanceNameSuffix(instanceName || mcName, instances);
+        setInstanceNameSufx(newName);
+
+        setAlreadyExists(exists);
+        setInvalidName(false);
+      });
+  }, [step]);
 
   const thumbnailURL = modpack?.attachments?.find(v => v.isDefault)
     ?.thumbnailUrl;
@@ -268,8 +277,14 @@ const InstanceName = ({
                     <Input
                       state={state1}
                       size="large"
-                      placeholder={mcName}
-                      onChange={e => setInstanceName(e.target.value)}
+                      placeholder={instanceNameSufx || instanceName || mcName}
+                      onChange={async e => {
+                        const newName = instanceNameSuffix(
+                          e.target.value,
+                          instances
+                        );
+                        setInstanceName(newName);
+                      }}
                       css={`
                         opacity: ${({ state }) =>
                           state === 'entering' || state === 'entered' ? 0 : 1};
@@ -279,7 +294,7 @@ const InstanceName = ({
                       `}
                     />
                     <div
-                      show={invalidName || alreadyExists}
+                      show={!instanceNameSufx && (invalidName || alreadyExists)}
                       css={`
                         opacity: ${props => (props.show ? 1 : 0)};
                         color: ${props => props.theme.palette.error.main};
@@ -321,11 +336,13 @@ const InstanceName = ({
                     }
                   `}
                   onClick={() => {
-                    createInstance(instanceName || mcName);
+                    createInstance(instanceNameSufx || instanceName || mcName);
                     setClicked(true);
                   }}
                 >
-                  {clicked || alreadyExists || invalidName ? (
+                  {clicked ||
+                  (alreadyExists && !instanceNameSufx) ||
+                  invalidName ? (
                     ''
                   ) : (
                     <FontAwesomeIcon icon={faLongArrowAltRight} />
