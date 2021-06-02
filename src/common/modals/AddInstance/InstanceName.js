@@ -34,6 +34,7 @@ const InstanceName = ({
   setVersion,
   setModpack,
   importZipPath,
+  importUpdate,
   step
 }) => {
   const mcName = (
@@ -154,7 +155,9 @@ const InstanceName = ({
             localInstanceName,
             loader,
             manifest,
-            imageURL ? `background${path.extname(imageURL)}` : null
+            imageURL ? `background${path.extname(imageURL)}` : null,
+            0,
+            importUpdate !== '' ? {zipUrl: importUpdate, downloadInstanceZip: true} : {}
           )
         );
       } else if (version?.loaderType === FABRIC) {
@@ -171,7 +174,9 @@ const InstanceName = ({
             localInstanceName,
             loader,
             manifest,
-            imageURL ? `background${path.extname(imageURL)}` : null
+            imageURL ? `background${path.extname(imageURL)}` : null,
+            0,
+            importUpdate !== '' ? {zipUrl: importUpdate, downloadInstanceZip: true} : {}
           )
         );
       } else if (version?.loaderType === VANILLA) {
@@ -187,7 +192,9 @@ const InstanceName = ({
             localInstanceName,
             loader,
             manifest,
-            imageURL ? `background${path.extname(imageURL)}` : null
+            imageURL ? `background${path.extname(imageURL)}` : null,
+            0,
+            importUpdate !== '' ? {zipUrl: importUpdate, downloadInstanceZip: true} : {}
           )
         );
       }

@@ -7,7 +7,7 @@ import { promises as fs } from 'fs';
 import { extractFull } from 'node-7z';
 import { get7zPath, isMod } from '../../../app/desktop/utils';
 import { ipcRenderer } from 'electron';
-import { Button, Input } from 'antd';
+import { Button, Input, Switch } from 'antd';
 import { _getTempPath } from '../../utils/selectors';
 import { useSelector } from 'react-redux';
 import { getAddon, getAddonFiles } from '../../api';
@@ -16,13 +16,15 @@ import { CURSEFORGE, FABRIC, FORGE, VANILLA } from '../../utils/constants';
 import { transparentize } from 'polished';
 
 const Import = ({
-  setModpack,
   setVersion,
-  importZipPath,
+  setModpack,
   setImportZipPath,
+  importZipPath,
+  setImportUpdate,
   setOverrideNextStepOnClick
 }) => {
   const [localValue, setLocalValue] = useState(null);
+  const [updateChecked, setUpdateChecked] = useState(false);
   const tempPath = useSelector(_getTempPath);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -34,7 +36,10 @@ const Import = ({
   useEffect(() => {
     setImportZipPath(localValue?.length > 0 ? localValue : null);
     setVersion(null);
-  }, [localValue]);
+
+    if (updateChecked) setImportUpdate(localValue);
+    else setImportUpdate('');
+  }, [localValue, updateChecked]);
 
   const openFileDialog = async () => {
     const dialog = await ipcRenderer.invoke('openFileDialog');
@@ -64,6 +69,8 @@ const Import = ({
         setLoading(false);
         throw err;
       }
+    } else {
+      setImportUpdate('');
     }
 
     const sevenZipPath = await get7zPath();
@@ -168,6 +175,16 @@ const Import = ({
           <Button disabled={loading} type="primary" onClick={openFileDialog}>
             Browse
           </Button>
+        </div>
+        <div
+          css={`
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+          `}
+        >
+          Update the instance during launch
+          <Switch onChange={checked => {setUpdateChecked(checked);}}/>
         </div>
         <div
           show={error}
